@@ -1,0 +1,60 @@
+html, body, #root {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+  font-family: sans-serif;
+  background: #0b0f14;
+}
+
+.app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* SIDEBARS */
+.sidebar {
+  background: #11161c;
+  color: white;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar.left {
+  width: 260px;
+}
+
+.sidebar.right {
+  width: 260px;
+}
+
+/* CANVAS */
+.canvas {
+  flex: 1;
+  position: relative;
+}
+
+/* 🔥 RESPONSIVE BREAKPOINT */
+@media (max-width: 1000px) {
+  .sidebar.left,
+  .sidebar.right {
+    width: 200px;
+  }
+}
+
+@media (max-width: 800px) {
+  .app {
+    flex-direction: column;
+  }
+
+  .sidebar.left,
+  .sidebar.right {
+    width: 100%;
+    height: 120px;
+  }
+
+  .canvas {
+    flex: 1;
+  }
+}
