@@ -1,46 +1,51 @@
-import { RoundedBox } from '@react-three/drei'
 import { useTileStore } from '../state/useTileStore'
-
-const MATERIALS = {
-  resin: { roughness: 0.6, metalness: 0 },
-  acrylic: { roughness: 0.3, metalness: 0 },
-  metal: { roughness: 0.25, metalness: 1 },
-  wood: { roughness: 0.7, metalness: 0 },
-}
+import TileLayer from './tile/TileLayer'
 
 export default function Tile() {
-  const { layers, width, depth, cornerRadius, finish } = useTileStore()
+  const {
+    layers,
+    width,
+    depth,
+    cornerTL,
+    cornerTR,
+    cornerBL,
+    cornerBR,
+    edgeBevel,
+    smoothness,
+    finish,
+    exploded,
+  } = useTileStore()
 
-  let currentY = 0
+  const explodeGap = exploded ? 6 : 0
+
+  // Y positions are derived from the running total of prior layer
+  // thicknesses, never hardcoded, so the stack stays correct when any
+  // layer's thickness changes.
+  const offsets = layers.map((_, i) =>
+    layers.slice(0, i).reduce((sum, l) => sum + l.thickness, 0)
+  )
 
   return (
     <group>
       {layers.map((layer, i) => {
-        const height = layer.thickness
-
-        const yPos = currentY + height / 2
-
-        currentY += height
-
-        const maxRadius = Math.min(width, depth) / 2 - 0.5
-        const radius = Math.min(cornerRadius, maxRadius)
-
-        const materialProps = MATERIALS[layer.material] || MATERIALS.resin
+        const y = offsets[i] + i * explodeGap
 
         return (
-          <RoundedBox
+          <TileLayer
             key={layer.id}
-            args={[width, height, depth]}
-            radius={radius}
-            smoothness={6}
-            position={[0, yPos + i * 0.01, 0]} // 👈 prevents z-fighting
-          >
-            <meshStandardMaterial
-              color={layer.color}
-              roughness={finish === 'matte' ? 0.7 : materialProps.roughness}
-              metalness={materialProps.metalness}
-            />
-          </RoundedBox>
+            layer={layer}
+            index={i}
+            y={y}
+            width={width}
+            depth={depth}
+            cornerTL={cornerTL}
+            cornerTR={cornerTR}
+            cornerBL={cornerBL}
+            cornerBR={cornerBR}
+            edgeBevel={edgeBevel}
+            smoothness={smoothness}
+            finish={finish}
+          />
         )
       })}
     </group>
