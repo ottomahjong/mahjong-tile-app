@@ -5,7 +5,7 @@ import { exportPNG, exportGLB } from '../../hooks/useExport'
 export default function ExportPanel({ rendererState }) {
   const [multiplier, setMultiplier] = useState(1)
   const exploded = useTileStore((s) => s.exploded)
-  const setViewMode = useTileStore((s) => s.setViewMode)
+  const toggleExploded = useTileStore((s) => s.toggleExploded)
 
   const handlePNG = () => {
     if (!rendererState.current) return
@@ -17,33 +17,29 @@ export default function ExportPanel({ rendererState }) {
     // GLB is a print-ready model - always export the stacked tile, never
     // the exploded view, even if that's what's currently on screen.
     const wasExploded = exploded
-    if (wasExploded) setViewMode('single')
+    if (wasExploded) toggleExploded()
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         exportGLB(rendererState.current)
-        if (wasExploded) setViewMode('exploded')
+        if (wasExploded) toggleExploded()
       })
     })
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div>
-        <label style={{ fontSize: 11, opacity: 0.7 }}>Resolution</label>
-        <select
-          value={multiplier}
-          onChange={(e) => setMultiplier(Number(e.target.value))}
-          style={{ width: '100%' }}
-        >
+    <div className="export-panel">
+      <label className="field">
+        <span>Resolution</span>
+        <select value={multiplier} onChange={(e) => setMultiplier(Number(e.target.value))}>
           <option value={1}>1x</option>
           <option value={2}>2x</option>
           <option value={4}>4x</option>
         </select>
-      </div>
-      <button style={{ width: '100%' }} onClick={handlePNG}>
+      </label>
+      <button className="btn btn-primary" onClick={handlePNG}>
         Export PNG
       </button>
-      <button style={{ width: '100%' }} onClick={handleGLB}>
+      <button className="btn btn-outline" onClick={handleGLB}>
         Export GLB
       </button>
     </div>

@@ -6,6 +6,7 @@ export default function TileControls() {
     addLayer,
     updateLayer,
     removeLayer,
+    moveLayer,
     width,
     depth,
     cornerTL,
@@ -33,10 +34,10 @@ export default function TileControls() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <section>
-        <h4 style={{ margin: '0 0 8px' }}>Corner Radii</h4>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+    <div className="controls">
+      <section className="panel-section">
+        <div className="eyebrow">Corner Radii</div>
+        <label className="check">
           <input
             type="checkbox"
             checked={cornerLinked}
@@ -44,10 +45,10 @@ export default function TileControls() {
           />
           Linked
         </label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+        <div className="corner-grid">
           {corners.map(([key, label, value]) => (
-            <div key={key}>
-              <div style={{ fontSize: 11, opacity: 0.7 }}>{label}</div>
+            <label className="field" key={key}>
+              <span>{label} · {value.toFixed(1)}</span>
               <input
                 type="range"
                 min={0}
@@ -55,44 +56,45 @@ export default function TileControls() {
                 step={0.1}
                 value={value}
                 onChange={(e) => setCorner(key, Number(e.target.value))}
-                style={{ width: '100%' }}
               />
-            </div>
+            </label>
           ))}
         </div>
       </section>
 
-      <section>
-        <h4 style={{ margin: '0 0 8px' }}>Edges</h4>
-        <div style={{ fontSize: 11, opacity: 0.7 }}>Bevel: {edgeBevel.toFixed(1)}</div>
-        <input
-          type="range"
-          min={0}
-          max={3}
-          step={0.1}
-          value={edgeBevel}
-          onChange={(e) => setEdgeBevel(Number(e.target.value))}
-          style={{ width: '100%' }}
-        />
-        <div style={{ fontSize: 11, opacity: 0.7, marginTop: 8 }}>Smoothness: {smoothness}</div>
-        <input
-          type="range"
-          min={1}
-          max={16}
-          step={1}
-          value={smoothness}
-          onChange={(e) => setSmoothness(Number(e.target.value))}
-          style={{ width: '100%' }}
-        />
+      <section className="panel-section">
+        <div className="eyebrow">Edges</div>
+        <label className="field">
+          <span>Bevel · {edgeBevel.toFixed(1)}</span>
+          <input
+            type="range"
+            min={0}
+            max={4}
+            step={0.1}
+            value={edgeBevel}
+            onChange={(e) => setEdgeBevel(Number(e.target.value))}
+          />
+        </label>
+        <label className="field">
+          <span>Smoothness · {smoothness}</span>
+          <input
+            type="range"
+            min={2}
+            max={24}
+            step={1}
+            value={smoothness}
+            onChange={(e) => setSmoothness(Number(e.target.value))}
+          />
+        </label>
       </section>
 
-      <section>
-        <h4 style={{ margin: '0 0 8px' }}>View</h4>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+      <section className="panel-section">
+        <div className="eyebrow">View</div>
+        <label className="check">
           <input type="checkbox" checked={exploded} onChange={toggleExploded} />
           Exploded view
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginTop: 6 }}>
+        <label className="check">
           <input
             type="checkbox"
             checked={finish === 'matte'}
@@ -102,54 +104,74 @@ export default function TileControls() {
         </label>
       </section>
 
-      <section>
-        <h4 style={{ margin: '0 0 8px' }}>
-          Layer Stack{' '}
-          <button onClick={addLayer} disabled={layers.length >= 4} style={{ marginLeft: 8 }}>
+      <section className="panel-section">
+        <div className="section-row">
+          <div className="eyebrow">Layer Stack</div>
+          <button className="btn-ghost" onClick={addLayer} disabled={layers.length >= 6}>
             + Add
           </button>
-        </h4>
-        {layers.map((layer) => (
-          <div
-            key={layer.id}
-            style={{ marginBottom: 12, padding: 8, background: '#0b0f14', borderRadius: 4 }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: 13 }}>{layer.name || layer.id}</strong>
-              <button onClick={() => removeLayer(layer.id)}>Remove</button>
-            </div>
+        </div>
+        <div className="stack-hint">Top of tile is the last layer</div>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
-              <input
-                type="color"
-                value={layer.color}
-                onChange={(e) => updateLayer(layer.id, { color: e.target.value })}
-              />
-              <select
-                value={layer.material}
-                onChange={(e) => {
-                  const mat = e.target.value
-                  updateLayer(layer.id, { material: mat, ...MATERIALS[mat] })
-                }}
-              >
-                {Object.keys(MATERIALS).map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min={1}
-                step={0.5}
-                value={layer.thickness}
-                onChange={(e) => updateLayer(layer.id, { thickness: Number(e.target.value) })}
-                style={{ width: 60 }}
-                title="Thickness"
-              />
+        {[...layers].reverse().map((layer) => {
+          const i = layers.findIndex((l) => l.id === layer.id)
+          return (
+            <div key={layer.id} className="layer-card">
+              <div className="layer-card-head">
+                <input
+                  className="layer-name"
+                  value={layer.name}
+                  onChange={(e) => updateLayer(layer.id, { name: e.target.value })}
+                />
+                <div className="layer-actions">
+                  <button className="btn-ghost" title="Move up" onClick={() => moveLayer(layer.id, 1)} disabled={i === layers.length - 1}>↑</button>
+                  <button className="btn-ghost" title="Move down" onClick={() => moveLayer(layer.id, -1)} disabled={i === 0}>↓</button>
+                  <button className="btn-ghost" onClick={() => removeLayer(layer.id)} disabled={layers.length <= 1}>✕</button>
+                </div>
+              </div>
+
+              <div className="layer-row">
+                <input
+                  type="color"
+                  value={layer.color}
+                  onChange={(e) => updateLayer(layer.id, { color: e.target.value })}
+                />
+                <select
+                  value={layer.material}
+                  onChange={(e) => updateLayer(layer.id, { material: e.target.value })}
+                >
+                  {Object.entries(MATERIALS).map(([key, m]) => (
+                    <option key={key} value={key}>{m.label}</option>
+                  ))}
+                </select>
+                <input
+                  className="num"
+                  type="number"
+                  min={0.5}
+                  step={0.5}
+                  value={layer.thickness}
+                  onChange={(e) => updateLayer(layer.id, { thickness: Number(e.target.value) })}
+                  title="Thickness (mm)"
+                />
+              </div>
+
+              <label className="field">
+                <span>
+                  {MATERIALS[layer.material]?.clear ? 'Tint strength' : 'Opacity'} ·{' '}
+                  {Math.round(layer.opacity * 100)}%
+                </span>
+                <input
+                  type="range"
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  value={layer.opacity}
+                  onChange={(e) => updateLayer(layer.id, { opacity: Number(e.target.value) })}
+                />
+              </label>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </section>
     </div>
   )
