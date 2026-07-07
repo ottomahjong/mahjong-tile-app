@@ -2,41 +2,38 @@ import { useRef } from 'react'
 import Scene from './components/Scene'
 import TileControls from './components/TileControls'
 import ExportPanel from './components/ui/ExportPanel'
+import FacePanel from './components/ui/FacePanel'
 
 export default function App() {
   const rendererState = useRef(null)
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#0b0f14' }}>
-
-      {/* LEFT PANEL */}
-      <div style={{
-        width: '260px',
-        background: '#11161c',
-        padding: '16px',
-        color: '#fff',
-        overflowY: 'auto'
-      }}>
-        <h3>Tile Settings</h3>
+    <div className="app">
+      <aside className="sidebar left">
+        <div className="brand">
+          <div className="eyebrow">Otto</div>
+          <h1>Tile Studio</h1>
+        </div>
         <TileControls />
-      </div>
+      </aside>
 
-      {/* CENTER CANVAS */}
-      <div style={{ flex: 1 }}>
+      <main className="viewport">
         <Scene onReady={(state) => { rendererState.current = state }} />
-      </div>
+      </main>
 
-      {/* RIGHT PANEL */}
-      <div style={{
-        width: '260px',
-        background: '#11161c',
-        padding: '16px',
-        color: '#fff'
-      }}>
-        <h3>Export</h3>
+      <aside className="sidebar right">
+        <div className="brand">
+          <div className="eyebrow">Artwork</div>
+          <h1>Faces</h1>
+        </div>
+        <FacePanel which="faceA" title="Face A · Front" defaultEnd="top" />
+        <FacePanel which="faceB" title="Face B · Back" defaultEnd="bottom" />
+
+        <div className="brand" style={{ marginTop: 'auto' }}>
+          <div className="eyebrow">Output</div>
+        </div>
         <ExportPanel rendererState={rendererState} />
-      </div>
-
+      </aside>
     </div>
   )
 }

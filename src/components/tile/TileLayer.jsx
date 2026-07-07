@@ -1,14 +1,36 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
-import { MeshTransmissionMaterial } from '@react-three/drei'
-import { buildSilhouette } from './TileSilhouette'
+import { MATERIALS } from '../../state/useTileStore'
+import { buildLayerGeometry } from './LayerGeometry'
+import { useFaceTexture } from './useFaceTexture'
 
-// Single layer of the stack (Base / Body / Inlay / Cap). All layers share the
-// same footprint silhouette so they stay flush at the edges - only the
-// outermost faces (cap top, base bottom) get a bevel.
+function makeMaterial(layer, finish, index) {
+  const preset = MATERIALS[layer.material] || MATERIALS.resin
+  const mat = new THREE.MeshPhysicalMaterial({
+    color: layer.color,
+    roughness: finish === 'matte' ? Math.max(preset.roughness, 0.65) : preset.roughness,
+    metalness: preset.metalness,
+    clearcoat: finish === 'matte' ? 0 : preset.clear ? 1 : 0.6,
+    clearcoatRoughness: 0.08,
+    envMapIntensity: preset.metalness > 0.5 ? 2.5 : 1.2,
+    polygonOffset: true,
+    polygonOffsetFactor: -(index + 1),
+  })
+  // Clear layers use alpha transparency so artwork on the layers beneath
+  // shows through; the opacity slider sets the strength of the tint.
+  const opacity = layer.opacity ?? 1
+  if (preset.clear || opacity < 1) {
+    mat.transparent = true
+    mat.opacity = preset.clear ? Math.min(opacity, 0.95) : opacity
+  }
+  return mat
+}
+
 export default function TileLayer({
   layer,
   index,
+  isTop,
+  isBottom,
   y,
   width,
   depth,
@@ -19,69 +41,77 @@ export default function TileLayer({
   edgeBevel,
   smoothness,
   finish,
+  faceA,
+  faceB,
 }) {
-  const isCap = layer.id === 'cap'
-  const isBase = layer.id === 'base'
-  const isInlay = layer.material === 'metallic'
-
-  const safeBevel = Math.min(
-    edgeBevel,
-    cornerTL,
-    cornerTR,
-    cornerBL,
-    cornerBR,
-    layer.thickness * 0.45
-  )
-
-  const geometry = useMemo(() => {
-    const shape = buildSilhouette(width, depth, cornerTL, cornerTR, cornerBR, cornerBL)
-    const geo = new THREE.ExtrudeGeometry(shape, {
-      depth: layer.thickness,
-      bevelEnabled: isCap || isBase,
-      bevelSize: safeBevel,
-      bevelThickness: safeBevel,
-      bevelSegments: smoothness,
-      curveSegments: smoothness,
-    })
-    geo.rotateX(-Math.PI / 2)
-    geo.computeVertexNormals()
-    return geo
-  }, [width, depth, cornerTL, cornerTR, cornerBL, cornerBR, layer.thickness, isCap, isBase, safeBevel, smoothness])
-
-  const polygonOffsetFactor = -(index + 1)
-
-  if (isCap) {
-    return (
-      <mesh geometry={geometry} position={[0, y, 0]} castShadow receiveShadow>
-        <MeshTransmissionMaterial
-          transmission={0.92}
-          thickness={0.6}
-          roughness={0.02}
-          ior={1.5}
-          color={layer.color}
-          chromaticAberration={0.008}
-          samples={4}
-          resolution={256}
-          clearcoat={1}
-          clearcoatRoughness={0.02}
-          envMapIntensity={2}
-          polygonOffset
-          polygonOffsetFactor={polygonOffsetFactor}
-        />
-      </mesh>
-    )
+  // Face art targets: A renders on this layer's top face, B on its bottom.
+  const myFaceA = faceA && (faceA.layerId ? faceA.layerId === layer.id : isTop) ? faceA : null
+  const myFaceB = faceB && (faceB.layerId ? faceB.layerId === layer.id : isBottom) ? faceB : null
+  const surface = {
+    color: layer.color,
+    opacity: layer.opacity ?? 1,
+    clear: (MATERIALS[layer.material] || MATERIALS.resin).clear ?? false,
   }
+  const texA = useFaceTexture(myFaceA, surface)
+  const texB = useFaceTexture(myFaceB, surface)
+
+  const geometry = useMemo(
+    () =>
+      buildLayerGeometry({
+        width,
+        depth,
+        thickness: layer.thickness,
+        cornerTL,
+        cornerTR,
+        cornerBR,
+        cornerBL,
+        bevelTop: isTop ? edgeBevel : 0,
+        bevelBottom: isBottom ? edgeBevel : 0,
+        cornerSegs: smoothness,
+        bevelSegs: Math.max(3, Math.round(smoothness * 0.75)),
+      }),
+    [width, depth, layer.thickness, cornerTL, cornerTR, cornerBR, cornerBL, isTop, isBottom, edgeBevel, smoothness]
+  )
+  useEffect(() => () => geometry.dispose(), [geometry])
+
+  // Material groups: 0 = sides, 1 = top face, 2 = bottom face
+  const materials = useMemo(() => {
+    const side = makeMaterial(layer, finish, index)
+    const top = makeMaterial(layer, finish, index)
+    const bottom = makeMaterial(layer, finish, index)
+
+    const applyArt = (mat, tex, face) => {
+      if (!tex.map && !tex.normalMap) return
+      if (tex.map) {
+        // The artwork canvas is already composited over the layer color, so
+        // the material color must not tint it a second time.
+        mat.map = tex.map
+        mat.color = new THREE.Color('#ffffff')
+      }
+      if (tex.alphaMap) {
+        mat.alphaMap = tex.alphaMap
+        mat.transparent = true
+        mat.opacity = 1
+      }
+      if (tex.normalMap) {
+        mat.normalMap = tex.normalMap
+        const d = face?.depth ?? 0.8
+        mat.normalScale = new THREE.Vector2(d, d)
+      }
+    }
+    applyArt(top, texA, myFaceA)
+    applyArt(bottom, texB, myFaceB)
+    return [side, top, bottom]
+  }, [layer, finish, index, texA, texB, myFaceA, myFaceB])
+  useEffect(() => () => materials.forEach((m) => m.dispose()), [materials])
 
   return (
-    <mesh geometry={geometry} position={[0, y, 0]} castShadow receiveShadow>
-      <meshStandardMaterial
-        color={layer.color}
-        roughness={finish === 'matte' ? Math.max(layer.roughness ?? 0.6, 0.7) : layer.roughness ?? 0.6}
-        metalness={layer.metalness ?? 0}
-        envMapIntensity={isInlay ? 2.5 : 1}
-        polygonOffset
-        polygonOffsetFactor={polygonOffsetFactor}
-      />
-    </mesh>
+    <mesh
+      geometry={geometry}
+      material={materials}
+      position={[0, y, 0]}
+      castShadow
+      receiveShadow
+    />
   )
 }
