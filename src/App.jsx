@@ -3,6 +3,7 @@ import Scene from './components/Scene'
 import TileControls from './components/TileControls'
 import ExportPanel from './components/ui/ExportPanel'
 import FacePanel from './components/ui/FacePanel'
+import SetPanel from './components/ui/SetPanel'
 
 export default function App() {
   const rendererState = useRef(null)
@@ -28,6 +29,7 @@ export default function App() {
         </div>
         <FacePanel which="faceA" title="Face A · Front" defaultEnd="top" />
         <FacePanel which="faceB" title="Face B · Back" defaultEnd="bottom" />
+        <SetPanel />
 
         <div className="brand" style={{ marginTop: 'auto' }}>
           <div className="eyebrow">Output</div>
