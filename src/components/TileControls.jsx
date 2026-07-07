@@ -1,4 +1,4 @@
-import { useTileStore, MATERIALS } from '../state/useTileStore'
+import { useTileStore, MATERIALS, VIEW_MODES } from '../state/useTileStore'
 
 export default function TileControls() {
   const {
@@ -24,6 +24,8 @@ export default function TileControls() {
     setFinish,
     exploded,
     toggleExploded,
+    viewMode,
+    setViewMode,
   } = useTileStore()
 
   const corners = [
@@ -89,7 +91,15 @@ export default function TileControls() {
       </section>
 
       <section className="panel-section">
-        <div className="eyebrow">View</div>
+        <div className="eyebrow">Mockup View</div>
+        <label className="field">
+          <span>Composition</span>
+          <select value={viewMode} onChange={(e) => setViewMode(e.target.value)}>
+            {VIEW_MODES.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+        </label>
         <label className="check">
           <input type="checkbox" checked={exploded} onChange={toggleExploded} />
           Exploded view

@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { MATERIALS } from '../../state/useTileStore'
 import { buildLayerGeometry } from './LayerGeometry'
-import { useFaceTexture } from './useFaceTexture'
+import { useFaceArt } from './useFaceArt'
 
 function makeMaterial(layer, finish, index) {
   const preset = MATERIALS[layer.material] || MATERIALS.resin
@@ -16,8 +16,6 @@ function makeMaterial(layer, finish, index) {
     polygonOffset: true,
     polygonOffsetFactor: -(index + 1),
   })
-  // Clear layers use alpha transparency so artwork on the layers beneath
-  // shows through; the opacity slider sets the strength of the tint.
   const opacity = layer.opacity ?? 1
   if (preset.clear || opacity < 1) {
     mat.transparent = true
@@ -43,17 +41,22 @@ export default function TileLayer({
   finish,
   faceA,
   faceB,
+  lowDetail = false,
 }) {
+  const preset = MATERIALS[layer.material] || MATERIALS.resin
   // Face art targets: A renders on this layer's top face, B on its bottom.
   const myFaceA = faceA && (faceA.layerId ? faceA.layerId === layer.id : isTop) ? faceA : null
   const myFaceB = faceB && (faceB.layerId ? faceB.layerId === layer.id : isBottom) ? faceB : null
   const surface = {
     color: layer.color,
     opacity: layer.opacity ?? 1,
-    clear: (MATERIALS[layer.material] || MATERIALS.resin).clear ?? false,
+    clear: preset.clear ?? false,
+    roughness: preset.roughness,
+    metalness: preset.metalness,
   }
-  const texA = useFaceTexture(myFaceA, surface)
-  const texB = useFaceTexture(myFaceB, surface)
+  const quality = lowDetail ? { gridRes: 72, texRes: 512 } : { gridRes: 160, texRes: 1024 }
+  const artA = useFaceArt(myFaceA, surface, quality)
+  const artB = useFaceArt(myFaceB, surface, quality)
 
   const geometry = useMemo(
     () =>
@@ -69,8 +72,11 @@ export default function TileLayer({
         bevelBottom: isBottom ? edgeBevel : 0,
         cornerSegs: smoothness,
         bevelSegs: Math.max(3, Math.round(smoothness * 0.75)),
+        topArt: artA.heightArt,
+        bottomArt: artB.heightArt,
       }),
-    [width, depth, layer.thickness, cornerTL, cornerTR, cornerBR, cornerBL, isTop, isBottom, edgeBevel, smoothness]
+    [width, depth, layer.thickness, cornerTL, cornerTR, cornerBR, cornerBL,
+      isTop, isBottom, edgeBevel, smoothness, artA.heightArt, artB.heightArt]
   )
   useEffect(() => () => geometry.dispose(), [geometry])
 
@@ -80,29 +86,40 @@ export default function TileLayer({
     const top = makeMaterial(layer, finish, index)
     const bottom = makeMaterial(layer, finish, index)
 
-    const applyArt = (mat, tex, face) => {
-      if (!tex.map && !tex.normalMap) return
-      if (tex.map) {
-        // The artwork canvas is already composited over the layer color, so
-        // the material color must not tint it a second time.
-        mat.map = tex.map
+    const applyArt = (mat, art, face) => {
+      if (!face) return
+      if (art.map) {
+        // Artwork canvas is already composited over the layer color
+        mat.map = art.map
         mat.color = new THREE.Color('#ffffff')
       }
-      if (tex.alphaMap) {
-        mat.alphaMap = tex.alphaMap
+      if (art.alphaMap) {
+        mat.alphaMap = art.alphaMap
         mat.transparent = true
         mat.opacity = 1
       }
-      if (tex.normalMap) {
-        mat.normalMap = tex.normalMap
-        const d = face?.depth ?? 0.8
-        mat.normalScale = new THREE.Vector2(d, d)
+      if (art.normalMap) {
+        mat.normalMap = art.normalMap
+        const s = 0.5 + (face.depth ?? 0.8) * 0.4
+        mat.normalScale = new THREE.Vector2(s, s)
+      }
+      if (art.aoMap) {
+        mat.aoMap = art.aoMap
+        mat.aoMapIntensity = 1
+      }
+      if (art.metalnessMap) {
+        mat.metalnessMap = art.metalnessMap
+        mat.metalness = 1
+      }
+      if (art.roughnessMap) {
+        mat.roughnessMap = art.roughnessMap
+        mat.roughness = 1
       }
     }
-    applyArt(top, texA, myFaceA)
-    applyArt(bottom, texB, myFaceB)
+    applyArt(top, artA, myFaceA)
+    applyArt(bottom, artB, myFaceB)
     return [side, top, bottom]
-  }, [layer, finish, index, texA, texB, myFaceA, myFaceB])
+  }, [layer, finish, index, artA, artB, myFaceA, myFaceB])
   useEffect(() => () => materials.forEach((m) => m.dispose()), [materials])
 
   return (

@@ -2,14 +2,31 @@ import { create } from 'zustand'
 
 // Material families available from real tile manufacturers. `clear` layers
 // render with alpha transparency so a tinted clear resin/acrylic layer lets
-// artwork printed on the layer beneath show through — the opacity slider is
-// the strength of the tint.
+// artwork on the layer beneath show through.
 export const MATERIALS = {
   resin: { label: 'Resin', roughness: 0.5, metalness: 0 },
   acrylic: { label: 'Acrylic (clear)', roughness: 0.06, metalness: 0, clear: true },
   metallic: { label: 'Metallic', roughness: 0.15, metalness: 0.95 },
   wood: { label: 'Wood', roughness: 0.7, metalness: 0 },
 }
+
+export const FACE_MODES = [
+  { value: 'print', label: 'UV Print (full color)' },
+  { value: 'engrave-blind', label: 'Engraved · Blind' },
+  { value: 'engrave-fill', label: 'Engraved · Filled' },
+  { value: 'inlay', label: 'Inlay (own material)' },
+]
+
+export const DEFAULT_PLACEMENT = { x: 0, y: 0, scale: 1, rotation: 0 }
+
+export const VIEW_MODES = [
+  { value: 'single', label: 'Single Tile Hero' },
+  { value: 'grid', label: 'Full Set Grid' },
+  { value: 'stack', label: 'Tile Stack' },
+  { value: 'pair', label: 'Front & Back Pair' },
+  { value: 'layers', label: 'Layer Detail' },
+  { value: 'flatlay', label: 'Marketing Flat Lay' },
+]
 
 const defaultLayers = [
   { id: 'base', name: 'Base', thickness: 8, material: 'resin', color: '#f0ebe0', opacity: 1 },
@@ -18,14 +35,25 @@ const defaultLayers = [
   { id: 'cap', name: 'Cap', thickness: 6, material: 'acrylic', color: '#e8c4a0', opacity: 0.4 },
 ]
 
-let layerCounter = 0
+// Suit-aware ordering for batch-uploaded set fronts (flexible: unknown
+// prefixes sort alphabetically after the known ones).
+const SUIT_ORDER = ['bam', 'dot', 'crack', 'crak', 'north', 'east', 'south', 'west',
+  'red', 'green', 'white', 'dragon', 'flower', 'season', 'joker']
+
+export function setSortKey(name) {
+  const m = name.toLowerCase().match(/^([a-z]+)[-_ ]?(\d*)/)
+  const prefix = m?.[1] ?? name.toLowerCase()
+  const num = m?.[2] ? parseInt(m[2], 10) : 0
+  const idx = SUIT_ORDER.indexOf(prefix)
+  return [idx === -1 ? SUIT_ORDER.length : idx, prefix, num]
+}
+
+let counter = 0
 
 export const useTileStore = create((set) => ({
-  // Footprint dimensions
   width: 28,
   depth: 20,
 
-  // Per-corner radii
   cornerTL: 3,
   cornerTR: 3,
   cornerBL: 3,
@@ -36,29 +64,29 @@ export const useTileStore = create((set) => ({
 
   finish: 'polished',
 
-  // Layer stack, bottom to top
   layers: defaultLayers,
 
   // Face artwork. Face A = top of the tile, Face B = bottom (back).
-  // { src, name, mode: 'print' | 'engrave-paint' | 'engrave-blind',
-  //   paintColor, depth, layerId } — layerId is the layer the design is
-  //   applied to (top face for A, bottom face for B), so a print can sit on
-  //   an inner acrylic layer behind a clear cap.
+  // { src, name, mode, fillColor, inlayColor, depth, softness, layerId,
+  //   placement: { x, y, scale, rotation } }
   faceA: null,
   faceB: null,
 
-  // View
+  // Full mahjong set: front artwork per tile + one shared back design.
+  set: { tiles: [], backSrc: null },
+
+  viewMode: 'single',
   exploded: false,
 
   addLayer: () =>
     set((state) => {
       if (state.layers.length >= 6) return state
-      layerCounter += 1
+      counter += 1
       return {
         layers: [
           ...state.layers,
           {
-            id: `layer-${Date.now()}-${layerCounter}`,
+            id: `layer-${Date.now()}-${counter}`,
             name: `Layer ${state.layers.length + 1}`,
             material: 'resin',
             color: '#cccccc',
@@ -98,6 +126,44 @@ export const useTileStore = create((set) => ({
 
   updateFace: (which, updates) =>
     set((state) => (state[which] ? { [which]: { ...state[which], ...updates } } : state)),
+
+  updatePlacement: (which, updates) =>
+    set((state) =>
+      state[which]
+        ? { [which]: { ...state[which], placement: { ...state[which].placement, ...updates } } }
+        : state
+    ),
+
+  addSetTiles: (tiles) =>
+    set((state) => {
+      const merged = [...state.set.tiles]
+      for (const t of tiles) {
+        const existing = merged.findIndex((x) => x.name === t.name)
+        if (existing >= 0) merged[existing] = { ...merged[existing], src: t.src }
+        else merged.push(t)
+      }
+      merged.sort((a, b) => {
+        const ka = setSortKey(a.name)
+        const kb = setSortKey(b.name)
+        return ka[0] - kb[0] || ka[1].localeCompare(kb[1]) || ka[2] - kb[2]
+      })
+      return { set: { ...state.set, tiles: merged } }
+    }),
+
+  updateSetTile: (id, updates) =>
+    set((state) => ({
+      set: { ...state.set, tiles: state.set.tiles.map((t) => (t.id === id ? { ...t, ...updates } : t)) },
+    })),
+
+  removeSetTile: (id) =>
+    set((state) => ({
+      set: { ...state.set, tiles: state.set.tiles.filter((t) => t.id !== id) },
+    })),
+
+  setBackSrc: (src) => set((state) => ({ set: { ...state.set, backSrc: src } })),
+  clearSet: () => set({ set: { tiles: [], backSrc: null } }),
+
+  setViewMode: (m) => set({ viewMode: m }),
 
   setCorner: (corner, value) =>
     set((state) => {

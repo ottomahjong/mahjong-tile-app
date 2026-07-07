@@ -1,17 +1,12 @@
 import { useRef } from 'react'
-import { useTileStore } from '../../state/useTileStore'
-
-const MODES = [
-  { value: 'print', label: 'UV Print (full color)' },
-  { value: 'engrave-paint', label: 'Engraved · Painted' },
-  { value: 'engrave-blind', label: 'Engraved · Blind' },
-]
+import { useTileStore, FACE_MODES, DEFAULT_PLACEMENT } from '../../state/useTileStore'
 
 export default function FacePanel({ which, title, defaultEnd }) {
   const face = useTileStore((s) => s[which])
   const layers = useTileStore((s) => s.layers)
   const setFace = useTileStore((s) => s.setFace)
   const updateFace = useTileStore((s) => s.updateFace)
+  const updatePlacement = useTileStore((s) => s.updatePlacement)
   const inputRef = useRef(null)
 
   const handleFile = (e) => {
@@ -28,17 +23,21 @@ export default function FacePanel({ which, title, defaultEnd }) {
         src: reader.result,
         name: file.name,
         mode: face?.mode ?? 'print',
-        paintColor: face?.paintColor ?? '#1f2124',
+        fillColor: face?.fillColor ?? '#1f2124',
+        inlayColor: face?.inlayColor ?? '#b87333',
         depth: face?.depth ?? 0.8,
+        softness: face?.softness ?? 0.35,
         layerId: face?.layerId ?? null,
+        placement: face?.placement ?? { ...DEFAULT_PLACEMENT },
       })
     }
     reader.readAsDataURL(file)
     e.target.value = ''
   }
 
-  const isEngrave = face?.mode?.startsWith('engrave')
+  const isEngrave = face?.mode?.startsWith('engrave') || face?.mode === 'inlay'
   const defaultLayer = defaultEnd === 'top' ? layers[layers.length - 1] : layers[0]
+  const pl = face?.placement ?? DEFAULT_PLACEMENT
 
   return (
     <section className="panel-section">
@@ -68,11 +67,8 @@ export default function FacePanel({ which, title, defaultEnd }) {
 
           <label className="field">
             <span>Method</span>
-            <select
-              value={face.mode}
-              onChange={(e) => updateFace(which, { mode: e.target.value })}
-            >
-              {MODES.map((m) => (
+            <select value={face.mode} onChange={(e) => updateFace(which, { mode: e.target.value })}>
+              {FACE_MODES.map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
@@ -91,30 +87,82 @@ export default function FacePanel({ which, title, defaultEnd }) {
             </select>
           </label>
 
-          {face.mode === 'engrave-paint' && (
+          {face.mode === 'engrave-fill' && (
             <label className="field field-row">
-              <span>Paint color</span>
+              <span>Fill color</span>
               <input
                 type="color"
-                value={face.paintColor}
-                onChange={(e) => updateFace(which, { paintColor: e.target.value })}
+                value={face.fillColor}
+                onChange={(e) => updateFace(which, { fillColor: e.target.value })}
+              />
+            </label>
+          )}
+          {face.mode === 'inlay' && (
+            <label className="field field-row">
+              <span>Inlay color</span>
+              <input
+                type="color"
+                value={face.inlayColor}
+                onChange={(e) => updateFace(which, { inlayColor: e.target.value })}
               />
             </label>
           )}
 
           {isEngrave && (
-            <label className="field">
-              <span>Engrave depth · {face.depth.toFixed(1)}</span>
-              <input
-                type="range"
-                min={0.1}
-                max={2.5}
-                step={0.1}
-                value={face.depth}
-                onChange={(e) => updateFace(which, { depth: Number(e.target.value) })}
-              />
-            </label>
+            <>
+              <label className="field">
+                <span>{face.mode === 'inlay' ? 'Inset depth' : 'Engrave depth'} · {face.depth.toFixed(1)}</span>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={2.5}
+                  step={0.1}
+                  value={face.depth}
+                  onChange={(e) => updateFace(which, { depth: Number(e.target.value) })}
+                />
+              </label>
+              <label className="field">
+                <span>Edge softness · {face.softness.toFixed(2)}</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={face.softness}
+                  onChange={(e) => updateFace(which, { softness: Number(e.target.value) })}
+                />
+              </label>
+            </>
           )}
+
+          <div className="eyebrow" style={{ marginTop: 4 }}>Placement</div>
+          <div className="corner-grid">
+            <label className="field">
+              <span>Move X · {pl.x.toFixed(2)}</span>
+              <input type="range" min={-0.4} max={0.4} step={0.01} value={pl.x}
+                onChange={(e) => updatePlacement(which, { x: Number(e.target.value) })} />
+            </label>
+            <label className="field">
+              <span>Move Y · {pl.y.toFixed(2)}</span>
+              <input type="range" min={-0.4} max={0.4} step={0.01} value={pl.y}
+                onChange={(e) => updatePlacement(which, { y: Number(e.target.value) })} />
+            </label>
+            <label className="field">
+              <span>Scale · {pl.scale.toFixed(2)}</span>
+              <input type="range" min={0.15} max={2.5} step={0.05} value={pl.scale}
+                onChange={(e) => updatePlacement(which, { scale: Number(e.target.value) })} />
+            </label>
+            <label className="field">
+              <span>Rotate · {pl.rotation.toFixed(0)}°</span>
+              <input type="range" min={-180} max={180} step={1} value={pl.rotation}
+                onChange={(e) => updatePlacement(which, { rotation: Number(e.target.value) })} />
+            </label>
+          </div>
+          <div className="row-btns">
+            <button className="btn-ghost" onClick={() => updatePlacement(which, { x: 0, y: 0 })}>Center</button>
+            <button className="btn-ghost" onClick={() => updatePlacement(which, { scale: 1 })}>Fit safe area</button>
+            <button className="btn-ghost" onClick={() => updatePlacement(which, { ...DEFAULT_PLACEMENT })}>Reset</button>
+          </div>
 
           <button className="btn-ghost btn-swap" onClick={() => inputRef.current?.click()}>
             Replace artwork

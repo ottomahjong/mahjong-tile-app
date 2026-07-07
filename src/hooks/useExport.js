@@ -21,8 +21,11 @@ export function exportPNG({ gl, scene, camera }, multiplier = 1) {
 
 export function exportGLB({ scene }) {
   const exporter = new GLTFExporter()
+  // Export only the tile geometry, not scene helpers (contact shadows,
+  // environment lightformers) that GLTFExporter can't serialize.
+  const root = scene.getObjectByName('tile-root') ?? scene
   exporter.parse(
-    scene,
+    root,
     (result) => {
       const blob = new Blob([result], { type: 'model/gltf-binary' })
       const url = URL.createObjectURL(blob)
