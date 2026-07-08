@@ -78,6 +78,11 @@ export const useTileStore = create((set) => ({
   viewMode: 'single',
   exploded: false,
 
+  // Studio floor / background color, applied in every mockup composition.
+  bgColor: '#f5f2ec',
+  // Columns for the Full Set Grid (0 = auto-fit to a landscape rectangle).
+  gridCols: 0,
+
   addLayer: () =>
     set((state) => {
       if (state.layers.length >= 6) return state
@@ -164,6 +169,8 @@ export const useTileStore = create((set) => ({
   clearSet: () => set({ set: { tiles: [], backSrc: null } }),
 
   setViewMode: (m) => set({ viewMode: m }),
+  setBgColor: (c) => set({ bgColor: c }),
+  setGridCols: (n) => set({ gridCols: n }),
 
   setCorner: (corner, value) =>
     set((state) => {

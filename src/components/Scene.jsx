@@ -6,8 +6,19 @@ import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLigh
 import Tile from './Tile'
 import { useTileStore } from '../state/useTileStore'
 
-const WHITE_BG = '#f5f2ec'
-const WHITE_MODES = new Set(['grid', 'stack', 'pair', 'flatlay'])
+function luminance(hex) {
+  const n = parseInt(hex.slice(1), 16)
+  const r = ((n >> 16) & 255) / 255
+  const g = ((n >> 8) & 255) / 255
+  const b = (n & 255) / 255
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+// Columns for the set grid: explicit when set, else a landscape-biased fit.
+function gridColumns(count, gridCols) {
+  if (gridCols > 0) return Math.max(1, gridCols)
+  return Math.max(1, Math.min(count, Math.ceil(Math.sqrt(count * 2.2))))
+}
 
 function CameraRig({ mode, position, target }) {
   const camera = useThree((s) => s.camera)
@@ -24,34 +35,35 @@ function CameraRig({ mode, position, target }) {
   return null
 }
 
-// Full set laid flat face-up in suit rows on the studio floor
-function SetGrid({ tiles, backSrc, width, depth, tileH }) {
+// Full set laid flat face-up in an aligned rectangular grid on the floor.
+function SetGrid({ tiles, backSrc, cols, width, depth, tileH }) {
   const gapX = width + 7
   const gapZ = depth + 9
-  const rows = []
-  for (let i = 0; i < tiles.length; i += 9) rows.push(tiles.slice(i, i + 9))
+  const rows = Math.max(1, Math.ceil(tiles.length / cols))
   return (
     <group>
-      {rows.map((row, r) =>
-        row.map((tile, c) => (
+      {tiles.map((tile, i) => {
+        const r = Math.floor(i / cols)
+        const c = i % cols
+        return (
           <Tile
             key={tile.id}
             faceASrc={tile.src}
             faceBSrc={backSrc ?? null}
             lowDetail
-            position={[(c - (row.length - 1) / 2) * gapX, tileH / 2, (r - (rows.length - 1) / 2) * gapZ]}
+            position={[(c - (cols - 1) / 2) * gapX, tileH / 2, (r - (rows - 1) / 2) * gapZ]}
           />
-        ))
-      )}
+        )
+      })}
       {tiles.length === 0 && <Tile position={[0, tileH / 2, 0]} />}
     </group>
   )
 }
 
-function Arrangement({ mode, set, width, depth, tileH }) {
+function Arrangement({ mode, set, cols, width, depth, tileH }) {
   switch (mode) {
     case 'grid':
-      return <SetGrid tiles={set.tiles} backSrc={set.backSrc} width={width} depth={depth} tileH={tileH} />
+      return <SetGrid tiles={set.tiles} backSrc={set.backSrc} cols={cols} width={width} depth={depth} tileH={tileH} />
     case 'stack':
       return (
         <group>
@@ -66,29 +78,30 @@ function Arrangement({ mode, set, width, depth, tileH }) {
         </group>
       )
     case 'pair':
+      // Both tiles lie flat on the floor - one front-up, one flipped to
+      // show the back-up - side by side.
       return (
         <group>
-          <Tile
-            position={[-width * 0.68, depth / 2, 0]}
-            rotation={[Math.PI / 2 - 0.12, 0, 0]}
-          />
+          <Tile position={[-width * 0.72, tileH / 2, 0]} rotation={[0, 0, 0]} />
           <Tile
             faceBSrc={set.backSrc ?? undefined}
-            position={[width * 0.68, depth / 2, 0]}
-            rotation={[-Math.PI / 2 + 0.12, 0, 0]}
+            position={[width * 0.72, tileH / 2, 0]}
+            rotation={[Math.PI, 0, 0]}
           />
         </group>
       )
     case 'flatlay':
+      // Marketing flat lay: every tile lies flat on the surface (pure yaw
+      // spin only); the third is flipped face-down to show the back.
       return (
         <group>
-          <Tile position={[-width * 0.9, tileH / 2, -depth * 0.5]} rotation={[0, 0.45, 0]} />
-          <Tile lowDetail position={[width * 0.55, tileH / 2, depth * 0.35]} rotation={[0, -0.18, 0]} />
+          <Tile position={[-width * 0.85, tileH / 2, -depth * 0.35]} rotation={[0, 0.35, 0]} />
+          <Tile lowDetail position={[width * 0.55, tileH / 2, depth * 0.2]} rotation={[0, -0.22, 0]} />
           <Tile
             lowDetail
             faceBSrc={set.backSrc ?? undefined}
-            position={[width * 0.2, depth / 2, -depth * 1.4]}
-            rotation={[-Math.PI / 2 + 0.35, 0.2, 0]}
+            position={[width * 0.1, tileH / 2, depth * 1.15]}
+            rotation={[Math.PI, 0.12, 0]}
           />
         </group>
       )
@@ -107,6 +120,8 @@ export default function Scene({ onReady }) {
   const width = useTileStore((s) => s.width)
   const depth = useTileStore((s) => s.depth)
   const layers = useTileStore((s) => s.layers)
+  const bgColor = useTileStore((s) => s.bgColor)
+  const gridCols = useTileStore((s) => s.gridCols)
   const tileH = layers.reduce((sum, l) => sum + l.thickness, 0)
 
   useEffect(() => {
@@ -115,19 +130,25 @@ export default function Scene({ onReady }) {
     fillLightRef.current?.lookAt(0, 0, 0)
   }, [])
 
-  const white = WHITE_MODES.has(viewMode)
+  const lightBg = luminance(bgColor) > 0.5
 
-  const rowCount = Math.max(Math.ceil(set.tiles.length / 9), 1)
-  const gridExtent = Math.max(Math.min(set.tiles.length, 9) * (width + 7), rowCount * (depth + 9))
+  const cols = gridColumns(set.tiles.length, gridCols)
+  const rows = Math.max(1, Math.ceil(Math.max(set.tiles.length, 1) / cols))
+  const gridW = cols * (width + 7)
+  const gridD = rows * (depth + 9)
+  const gridExtent = Math.max(gridW, gridD)
+
   const CAMS = {
     single: { position: [55, 42, 55], target: [0, tileH / 2, 0] },
     layers: { position: [60, 45, 60], target: [0, tileH + 8, 0] },
-    grid: { position: [0, gridExtent * 1.35 + 55, gridExtent * 0.55 + 30], target: [0, 0, 0] },
+    grid: { position: [0, gridExtent * 1.25 + 55, gridExtent * 0.62 + 40], target: [0, 0, 0] },
     stack: { position: [115, 95, 135], target: [0, (tileH + 0.35) * 2, 0] },
-    pair: { position: [0, 34, width * 4.6], target: [0, depth / 2, 0] },
-    flatlay: { position: [10, 80, 70], target: [0, 4, -4] },
+    pair: { position: [0, width * 2.6, width * 3.2], target: [0, tileH / 2, 0] },
+    flatlay: { position: [8, 108, 56], target: [0, 0, depth * 0.35] },
   }
   const cam = CAMS[viewMode] ?? CAMS.single
+
+  const shadowScale = viewMode === 'grid' ? gridExtent * 1.5 : 160
 
   return (
     <Canvas
@@ -139,18 +160,18 @@ export default function Scene({ onReady }) {
         preserveDrawingBuffer: true,
       }}
       shadows="soft"
-      camera={{ position: [55, 42, 55], fov: 40, near: 1, far: 3000 }}
+      camera={{ position: [55, 42, 55], fov: 40, near: 1, far: 4000 }}
       onCreated={(state) => onReady?.(state)}
     >
-      {white && <color attach="background" args={[WHITE_BG]} />}
+      <color attach="background" args={[bgColor]} />
 
-      <ambientLight intensity={white ? 0.55 : 0.12} />
+      <ambientLight intensity={lightBg ? 0.55 : 0.12} />
 
       {/* Key softbox (top-left) */}
       <rectAreaLight
         ref={keyLightRef}
         position={[-30, 55, 30]}
-        intensity={white ? 1.4 : 2.0}
+        intensity={lightBg ? 1.4 : 2.0}
         width={40}
         height={40}
       />
@@ -168,16 +189,16 @@ export default function Scene({ onReady }) {
       </Environment>
 
       <group name="tile-root">
-        <Arrangement mode={viewMode} set={set} width={width} depth={depth} tileH={tileH} />
+        <Arrangement mode={viewMode} set={set} cols={cols} width={width} depth={depth} tileH={tileH} />
       </group>
 
       <ContactShadows
         position={[0, -0.01, 0]}
-        opacity={white ? 0.38 : 0.55}
-        scale={white && viewMode === 'grid' ? gridExtent * 1.6 : 160}
-        blur={2.2}
+        opacity={lightBg ? 0.4 : 0.55}
+        scale={shadowScale}
+        blur={2.4}
         far={tileH * 1.6}
-        resolution={512}
+        resolution={1024}
         color="#1a150f"
       />
 

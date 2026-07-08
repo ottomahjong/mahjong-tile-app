@@ -3,16 +3,27 @@ import * as THREE from 'three'
 
 const MASK_RES = 256
 
-// Draw the artwork onto a ctx of dimension `dim` honoring the per-face
-// placement (offsets are fractions of the face, scale 1 = fit to safe area).
-function drawPlaced(ctx, img, dim, placement) {
+const SAFE = 0.84 // fraction of the face the artwork fits inside at scale 1
+
+// Draw the artwork onto a square `dim` canvas honoring the per-face placement.
+// The face is `face.w` x `face.d` world units but the texture is square and
+// gets stretched onto the face by the UVs, so we pre-distort here: work in
+// world units (via an anisotropic scale) so a circle stays a circle on the
+// tile instead of smearing across the long axis. `scale` 1 fits the art to
+// the safe area; offsets are fractions of the face.
+function drawPlaced(ctx, img, dim, placement, face) {
   const p = placement ?? { x: 0, y: 0, scale: 1, rotation: 0 }
-  const fit = (dim * 0.84) / Math.max(img.width, img.height)
+  const W = face?.w ?? 1
+  const D = face?.d ?? 1
+  const a = img.width / img.height // artwork's own aspect ratio
+  const hWorld = SAFE * Math.min(D, W / a) // world height that fits the safe area
+  const wWorld = hWorld * a
   ctx.save()
   ctx.translate(dim / 2 + p.x * dim, dim / 2 + p.y * dim)
-  ctx.rotate((p.rotation * Math.PI) / 180)
+  ctx.scale(dim / W, dim / D) // world units -> canvas pixels (anisotropic)
+  ctx.rotate((p.rotation * Math.PI) / 180) // rotate in isotropic world space
   ctx.scale(p.scale, p.scale)
-  ctx.drawImage(img, (-img.width * fit) / 2, (-img.height * fit) / 2, img.width * fit, img.height * fit)
+  ctx.drawImage(img, -wWorld / 2, -hWorld / 2, wWorld, hWorld)
   ctx.restore()
 }
 
@@ -27,11 +38,11 @@ function makeCanvas(dim) {
 // luminance when the image has no meaningful alpha. Blurred by `softness`
 // so the cut walls slope (beveled edge) instead of aliasing, and forced to
 // zero at the border so the face grid stitches flush to the annulus.
-function buildMask(img, placement, softness) {
+function buildMask(img, placement, softness, face) {
   const S = MASK_RES
   const c = makeCanvas(S)
   const ctx = c.getContext('2d')
-  drawPlaced(ctx, img, S, placement)
+  drawPlaced(ctx, img, S, placement, face)
   const d = ctx.getImageData(0, 0, S, S).data
 
   let minAlpha = 255
@@ -136,17 +147,17 @@ function aoFromMask(mask, strength) {
 
 // Color map: artwork (optionally tinted) composited over the layer color so
 // transparent regions don't render black.
-function colorMap(img, placement, dim, { tint = null, bg }) {
+function colorMap(img, placement, dim, { tint = null, bg }, face) {
   const c = makeCanvas(dim)
   const ctx = c.getContext('2d')
   if (tint) {
-    drawPlaced(ctx, img, dim, placement)
+    drawPlaced(ctx, img, dim, placement, face)
     ctx.globalCompositeOperation = 'source-in'
     ctx.fillStyle = tint
     ctx.fillRect(0, 0, dim, dim)
     ctx.globalCompositeOperation = 'destination-over'
   } else {
-    drawPlaced(ctx, img, dim, placement)
+    drawPlaced(ctx, img, dim, placement, face)
     ctx.globalCompositeOperation = 'destination-over'
   }
   ctx.fillStyle = bg
@@ -157,7 +168,7 @@ function colorMap(img, placement, dim, { tint = null, bg }) {
 
 // Alpha map for faces on clear layers: printed ink stays solid while the
 // un-inked field keeps the layer's tint opacity.
-function alphaMapCanvas(img, placement, baseOpacity) {
+function alphaMapCanvas(img, placement, baseOpacity, face) {
   const S = MASK_RES
   const c = makeCanvas(S)
   const ctx = c.getContext('2d')
@@ -166,7 +177,7 @@ function alphaMapCanvas(img, placement, baseOpacity) {
   ctx.fillRect(0, 0, S, S)
   const solid = makeCanvas(S)
   const sctx = solid.getContext('2d')
-  drawPlaced(sctx, img, S, placement)
+  drawPlaced(sctx, img, S, placement, face)
   sctx.globalCompositeOperation = 'source-in'
   sctx.fillStyle = '#fff'
   sctx.fillRect(0, 0, S, S)
@@ -176,7 +187,7 @@ function alphaMapCanvas(img, placement, baseOpacity) {
 
 // Grayscale channel map with one value outside the artwork, another inside
 // (for per-pixel metalness/roughness in inlay mode).
-function channelMap(img, placement, bgVal, artVal) {
+function channelMap(img, placement, bgVal, artVal, face) {
   const S = MASK_RES
   const c = makeCanvas(S)
   const ctx = c.getContext('2d')
@@ -185,7 +196,7 @@ function channelMap(img, placement, bgVal, artVal) {
   ctx.fillRect(0, 0, S, S)
   const solid = makeCanvas(S)
   const sctx = solid.getContext('2d')
-  drawPlaced(sctx, img, S, placement)
+  drawPlaced(sctx, img, S, placement, face)
   sctx.globalCompositeOperation = 'source-in'
   const av = Math.round(artVal * 255)
   sctx.fillStyle = `rgb(${av},${av},${av})`
@@ -225,11 +236,12 @@ export function useFaceArt(face, surface, opts) {
   const surfMetal = surface?.metalness ?? 0
   const gridRes = opts?.gridRes ?? 160
   const texRes = opts?.texRes ?? 1024
+  const faceDim = { w: opts?.faceW ?? 1, d: opts?.faceD ?? 1 }
 
   const key = src
     ? [mode, fillColor, inlayColor, depth, softness, p.x, p.y, p.scale, p.rotation,
        surfColor, surfOpacity, surfClear, surfRough, surfMetal, gridRes, texRes,
-       src.length, src.slice(-32)].join('|')
+       faceDim.w, faceDim.d, src.length, src.slice(-32)].join('|')
     : null
 
   const [loaded, setLoaded] = useState(null)
@@ -242,7 +254,7 @@ export function useFaceArt(face, surface, opts) {
       if (cancelled) return
       const out = { ...EMPTY }
       const engraved = mode !== 'print'
-      const mask = engraved ? buildMask(img, p, softness) : null
+      const mask = engraved ? buildMask(img, p, softness, faceDim) : null
 
       if (engraved) {
         out.heightArt = {
@@ -257,17 +269,17 @@ export function useFaceArt(face, surface, opts) {
       }
 
       if (mode === 'print') {
-        out.map = tex(colorMap(img, p, texRes, { bg: surfColor }), true)
+        out.map = tex(colorMap(img, p, texRes, { bg: surfColor }, faceDim), true)
       } else if (mode === 'engrave-fill') {
-        out.map = tex(colorMap(img, p, texRes, { tint: fillColor, bg: surfColor }), true)
+        out.map = tex(colorMap(img, p, texRes, { tint: fillColor, bg: surfColor }, faceDim), true)
       } else if (mode === 'inlay') {
-        out.map = tex(colorMap(img, p, texRes, { tint: inlayColor, bg: surfColor }), true)
-        out.metalnessMap = tex(channelMap(img, p, surfMetal, 0.95))
-        out.roughnessMap = tex(channelMap(img, p, surfRough, 0.2))
+        out.map = tex(colorMap(img, p, texRes, { tint: inlayColor, bg: surfColor }, faceDim), true)
+        out.metalnessMap = tex(channelMap(img, p, surfMetal, 0.95, faceDim))
+        out.roughnessMap = tex(channelMap(img, p, surfRough, 0.2, faceDim))
       }
 
       if (out.map && surfClear) {
-        out.alphaMap = tex(alphaMapCanvas(img, p, surfOpacity))
+        out.alphaMap = tex(alphaMapCanvas(img, p, surfOpacity, faceDim))
       }
 
       setLoaded({ key, ...out })

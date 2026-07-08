@@ -54,7 +54,9 @@ export default function TileLayer({
     roughness: preset.roughness,
     metalness: preset.metalness,
   }
-  const quality = lowDetail ? { gridRes: 72, texRes: 512 } : { gridRes: 160, texRes: 1024 }
+  const quality = lowDetail
+    ? { gridRes: 72, texRes: 512, faceW: width, faceD: depth }
+    : { gridRes: 160, texRes: 1024, faceW: width, faceD: depth }
   const artA = useFaceArt(myFaceA, surface, quality)
   const artB = useFaceArt(myFaceB, surface, quality)
 

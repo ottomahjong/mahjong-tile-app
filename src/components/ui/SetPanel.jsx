@@ -30,6 +30,8 @@ export default function SetPanel() {
   const setBackSrc = useTileStore((s) => s.setBackSrc)
   const clearSet = useTileStore((s) => s.clearSet)
   const setViewMode = useTileStore((s) => s.setViewMode)
+  const gridCols = useTileStore((s) => s.gridCols)
+  const setGridCols = useTileStore((s) => s.setGridCols)
   const frontsRef = useRef(null)
   const backRef = useRef(null)
   const replaceRef = useRef(null)
@@ -101,6 +103,23 @@ export default function SetPanel() {
                 <button className="btn-ghost thumb-x" onClick={() => removeSetTile(t.id)}>✕</button>
               </div>
             ))}
+          </div>
+          <label className="field-row">
+            <span>Grid columns</span>
+            <input
+              type="number"
+              className="num"
+              min={0}
+              max={20}
+              value={gridCols}
+              onChange={(e) => setGridCols(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+              title="0 = auto"
+            />
+          </label>
+          <div className="stack-hint">
+            {gridCols > 0
+              ? `${gridCols} cols × ${Math.max(1, Math.ceil(set.tiles.length / gridCols))} rows`
+              : 'Auto columns · set a value (e.g. 11) for a fixed layout'}
           </div>
           <div className="row-btns">
             <button className="btn btn-primary" onClick={() => setViewMode('grid')}>

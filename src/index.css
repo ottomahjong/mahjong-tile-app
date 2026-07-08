@@ -333,3 +333,38 @@ input[type='color'] {
 }
 .thumb-name:hover, .thumb-name:focus { border-color: var(--border-hairline); background: var(--ink); }
 .thumb-x { position: absolute; top: -4px; right: -4px; font-size: 0.65rem; padding: 0 3px; background: var(--ink); }
+
+/* ── Artwork size guidance ── */
+.art-spec { display: flex; gap: 0.6rem; align-items: flex-start; }
+.art-spec-frame {
+  flex-shrink: 0;
+  width: 54px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--ink-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+.art-spec-safe {
+  width: 84%;
+  height: 84%;
+  border: 1px dashed var(--rust-text);
+  border-radius: 1px;
+}
+.art-spec-text { font-size: 0.72rem; line-height: 1.45; color: var(--stone-light); }
+.art-spec-text strong { color: var(--bone); }
+
+/* ── Background / floor swatches ── */
+.swatch-row { display: flex; gap: 4px; align-items: center; }
+.swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-hairline);
+  cursor: pointer;
+  padding: 0;
+}
+.swatch.active { outline: 1.5px solid var(--rust); outline-offset: 1px; }
+.swatch-row input[type='color'] { width: 24px; height: 22px; }
