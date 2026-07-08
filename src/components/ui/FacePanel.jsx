@@ -1,13 +1,26 @@
 import { useRef } from 'react'
 import { useTileStore, FACE_MODES, DEFAULT_PLACEMENT } from '../../state/useTileStore'
 
+// Simplify an aspect ratio to small whole numbers for the size hint.
+function ratio(w, d) {
+  const g = (a, b) => (b ? g(b, a % b) : a)
+  const k = g(Math.round(w), Math.round(d)) || 1
+  return `${Math.round(w / k)}:${Math.round(d / k)}`
+}
+
 export default function FacePanel({ which, title, defaultEnd }) {
   const face = useTileStore((s) => s[which])
   const layers = useTileStore((s) => s.layers)
+  const width = useTileStore((s) => s.width)
+  const depth = useTileStore((s) => s.depth)
   const setFace = useTileStore((s) => s.setFace)
   const updateFace = useTileStore((s) => s.updateFace)
   const updatePlacement = useTileStore((s) => s.updatePlacement)
   const inputRef = useRef(null)
+
+  // Face is width x depth (mm); recommend art at ~50 px/mm on that ratio.
+  const recoW = Math.round(width * 50)
+  const recoH = Math.round(depth * 50)
 
   const handleFile = (e) => {
     const file = e.target.files?.[0]
@@ -50,6 +63,18 @@ export default function FacePanel({ which, title, defaultEnd }) {
         onChange={handleFile}
         style={{ display: 'none' }}
       />
+
+      <div className="art-spec">
+        <div className="art-spec-frame" style={{ aspectRatio: `${width} / ${depth}` }}>
+          <div className="art-spec-safe" />
+        </div>
+        <div className="art-spec-text">
+          Tile face is {width}×{depth} mm ({ratio(width, depth)}).
+          Upload a transparent PNG or SVG at ~<strong>{recoW}×{recoH}px</strong>,
+          artwork centered with an ~8% safe margin. Off-ratio art is fit inside
+          the dashed safe area without stretching.
+        </div>
+      </div>
 
       {!face && (
         <button className="btn btn-outline" onClick={() => inputRef.current?.click()}>

@@ -26,6 +26,8 @@ export default function TileControls() {
     toggleExploded,
     viewMode,
     setViewMode,
+    bgColor,
+    setBgColor,
   } = useTileStore()
 
   const corners = [
@@ -111,6 +113,21 @@ export default function TileControls() {
             onChange={(e) => setFinish(e.target.checked ? 'matte' : 'polished')}
           />
           Matte finish
+        </label>
+        <label className="field-row">
+          <span>Background / floor</span>
+          <div className="swatch-row">
+            {['#f5f2ec', '#ffffff', '#161719', '#c7d0d6', '#e7d3c2'].map((c) => (
+              <button
+                key={c}
+                className={`swatch${bgColor === c ? ' active' : ''}`}
+                style={{ background: c }}
+                onClick={() => setBgColor(c)}
+                title={c}
+              />
+            ))}
+            <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} />
+          </div>
         </label>
       </section>
 
