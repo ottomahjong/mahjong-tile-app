@@ -1,5 +1,6 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useTileStore } from '../../state/useTileStore'
+import { SET_TEMPLATES, templateDesignCount } from '../../state/setTemplates'
 
 function readFiles(files) {
   return Promise.all(
@@ -19,11 +20,12 @@ function readFiles(files) {
   )
 }
 
-// Batch upload for a full mahjong set: many front designs assigned by
-// filename (bam-1..9, dot-1..9, crack-1..9, winds, dragons, flowers,
-// seasons, joker...) plus one shared back design.
+// Batch upload for a full mahjong set: one front graphic per tile design
+// (auto-assigned by filename) plus one shared back design.
 export default function SetPanel() {
   const set = useTileStore((s) => s.set)
+  const width = useTileStore((s) => s.width)
+  const depth = useTileStore((s) => s.depth)
   const addSetTiles = useTileStore((s) => s.addSetTiles)
   const updateSetTile = useTileStore((s) => s.updateSetTile)
   const removeSetTile = useTileStore((s) => s.removeSetTile)
@@ -36,10 +38,46 @@ export default function SetPanel() {
   const backRef = useRef(null)
   const replaceRef = useRef(null)
   const replaceId = useRef(null)
+  const [template, setTemplate] = useState('160')
+
+  // Recommended art size: match the portrait face at ~50 px/mm so it lands
+  // upright with no stretching.
+  const recoW = Math.round(width * 50)
+  const recoH = Math.round(depth * 50)
+  const portrait = depth >= width
+
+  const tpl = SET_TEMPLATES[template]
+  const have = new Set(set.tiles.map((t) => t.name.toLowerCase()))
 
   return (
     <section className="panel-section">
       <div className="eyebrow">Full Set · Batch</div>
+
+      <div className="art-spec-text upload-guide">
+        <strong>How to upload</strong>
+        <ul>
+          <li><strong>Fronts:</strong> one graphic per tile design, selected together.</li>
+          <li>
+            <strong>Format:</strong> PNG with a transparent background (preferred) or
+            SVG. Avoid JPG — it can’t be transparent.
+          </li>
+          <li>
+            <strong>Size:</strong> {portrait ? 'portrait' : 'landscape'}{' '}
+            <strong>{recoW}×{recoH}px</strong> ({width}:{depth}), the same shape as the
+            tile face. Off-ratio art is fit inside the safe area, never stretched.
+          </li>
+          <li>
+            <strong>Layout:</strong> center the symbol with an ~8% margin, upright.
+          </li>
+          <li>
+            <strong>Naming:</strong> name each file so it auto-assigns — e.g.
+            <code>crak-1</code>, <code>bam-5</code>, <code>dot-9</code>,{' '}
+            <code>north</code>, <code>red-dragon</code>, <code>flower-1</code>,{' '}
+            <code>joker-1</code>, <code>blank-1</code>.
+          </li>
+          <li><strong>Back:</strong> one shared design at the same size.</li>
+        </ul>
+      </div>
 
       <input ref={frontsRef} type="file" multiple accept=".png,.svg,.jpg,.jpeg,.webp" style={{ display: 'none' }}
         onChange={async (e) => {
@@ -68,6 +106,41 @@ export default function SetPanel() {
           {set.backSrc ? 'Replace back' : 'Upload back'}
         </button>
       </div>
+
+      {/* Required-tiles checklist for the chosen set */}
+      <details className="set-template">
+        <summary>
+          What to upload · {tpl.label} ({templateDesignCount(template)} designs → {tpl.total} tiles)
+        </summary>
+        <div className="tpl-tabs">
+          {Object.entries(SET_TEMPLATES).map(([key, t]) => (
+            <button
+              key={key}
+              className={`btn-ghost${key === template ? ' active' : ''}`}
+              onClick={() => setTemplate(key)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {tpl.groups.map((g) => {
+          const done = g.files.filter((f) => have.has(f)).length
+          return (
+            <div className="tpl-group" key={g.name}>
+              <div className="tpl-group-head">
+                <span>{g.name}</span>
+                <span className="tpl-count">{done}/{g.files.length}</span>
+              </div>
+              <div className="tpl-note">{g.note}</div>
+              <div className="tpl-files">
+                {g.files.map((f) => (
+                  <code key={f} className={have.has(f) ? 'done' : ''}>{f}</code>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </details>
 
       {set.backSrc && (
         <div className="face-card-head">
