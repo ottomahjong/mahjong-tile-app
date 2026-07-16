@@ -1,4 +1,4 @@
-import { useTileStore } from '../state/useTileStore'
+import { useTileStore, DEFAULT_PLACEMENT } from '../state/useTileStore'
 import TileLayer from './tile/TileLayer'
 
 // One tile built from the shared layer stack. `faceASrc`/`faceBSrc` swap the
@@ -25,16 +25,20 @@ export default function Tile({
     exploded,
     faceA,
     faceB,
+    setFront,
+    setBack,
   } = useTileStore()
 
   const isExploded = explodedOverride ?? exploded
   const explodeGap = isExploded ? 6 : 0
 
+  // Batch set tiles swap in their own graphic but share the set-level finish
+  // (mode/depth/softness), centered. Single-tile view uses faceA/faceB.
   const effFaceA = faceASrc !== undefined
-    ? faceASrc ? { ...(faceA ?? { mode: 'print', depth: 0.8, softness: 0.35 }), src: faceASrc } : null
+    ? faceASrc ? { ...setFront, src: faceASrc, layerId: null, placement: DEFAULT_PLACEMENT } : null
     : faceA
   const effFaceB = faceBSrc !== undefined
-    ? faceBSrc ? { ...(faceB ?? { mode: 'print', depth: 0.8, softness: 0.35 }), src: faceBSrc } : null
+    ? faceBSrc ? { ...setBack, src: faceBSrc, layerId: null, placement: DEFAULT_PLACEMENT } : null
     : faceB
 
   const offsets = layers.map((_, i) =>

@@ -101,17 +101,18 @@ function buildMask(img, placement, softness, face) {
   return mask
 }
 
-// Tangent-space normal map from the mask so fine engraving detail reads as
-// recessed between displacement vertices.
-function normalMapFromMask(mask) {
+// Tangent-space normal map from the mask so fine detail reads as recessed
+// (engraving) or proud (raised ink) between displacement vertices.
+function normalMapFromMask(mask, raised = false) {
   const S = MASK_RES
   const c = makeCanvas(S)
   const ctx = c.getContext('2d')
   const img = ctx.createImageData(S, S)
-  const strength = 5
+  const strength = raised ? 4 : 5
+  const sign = raised ? 1 : -1
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
-      const h = (xx, yy) => -mask[Math.min(Math.max(yy, 0), S - 1) * S + Math.min(Math.max(xx, 0), S - 1)]
+      const h = (xx, yy) => sign * mask[Math.min(Math.max(yy, 0), S - 1) * S + Math.min(Math.max(xx, 0), S - 1)]
       const nx = (h(x - 1, y) - h(x + 1, y)) * strength
       const ny = (h(x, y + 1) - h(x, y - 1)) * strength
       const len = Math.sqrt(nx * nx + ny * ny + 1)
@@ -253,30 +254,33 @@ export function useFaceArt(face, surface, opts) {
     img.onload = () => {
       if (cancelled) return
       const out = { ...EMPTY }
-      const engraved = mode !== 'print'
-      const mask = engraved ? buildMask(img, p, softness, faceDim) : null
+      const raised = mode === 'print' // UV ink sits proud of the surface
+      const mask = buildMask(img, p, softness, faceDim)
 
-      if (engraved) {
-        out.heightArt = {
-          height: mask,
-          size: MASK_RES,
-          depth: mode === 'inlay' ? Math.min(depth, 0.6) : depth,
-          gridRes,
-        }
-        out.normalMap = tex(normalMapFromMask(mask))
+      // Every mode carries real surface relief:
+      //   print       -> a slight RAISED bump (ink thickness)
+      //   engrave-*    -> a recess cut into the layer
+      //   inlay        -> a shallow recess for the inserted material
+      const reliefDepth = raised ? 0.3 : mode === 'inlay' ? Math.min(depth, 0.6) : depth
+      out.heightArt = { height: mask, size: MASK_RES, depth: reliefDepth, gridRes, raised }
+      out.normalMap = tex(normalMapFromMask(mask, raised))
+
+      // Recessed cuts pick up cavity occlusion; raised ink does not.
+      if (!raised) {
         out.aoMap = tex(aoFromMask(mask, mode === 'engrave-blind' ? 0.35 : 0.5))
         out.aoMap.channel = 0
       }
 
-      if (mode === 'print') {
+      if (mode === 'print' || mode === 'engrave-fill') {
+        // Full color from the graphic itself: printed on top (print) or
+        // painted down inside the cut (painted infill).
         out.map = tex(colorMap(img, p, texRes, { bg: surfColor }, faceDim), true)
-      } else if (mode === 'engrave-fill') {
-        out.map = tex(colorMap(img, p, texRes, { tint: fillColor, bg: surfColor }, faceDim), true)
       } else if (mode === 'inlay') {
         out.map = tex(colorMap(img, p, texRes, { tint: inlayColor, bg: surfColor }, faceDim), true)
         out.metalnessMap = tex(channelMap(img, p, surfMetal, 0.95, faceDim))
         out.roughnessMap = tex(channelMap(img, p, surfRough, 0.2, faceDim))
       }
+      // engrave-blind: no color map at all - the cut reads from shadow alone.
 
       if (out.map && surfClear) {
         out.alphaMap = tex(alphaMapCanvas(img, p, surfOpacity, faceDim))
