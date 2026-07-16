@@ -4,7 +4,7 @@
 // automatic assignment on batch upload.
 
 function range(prefix, n) {
-  return Array.from({ length: n }, (_, i) => `${prefix}-${i + 1}`)
+  return Array.from({ length: n }, (_, i) => `${prefix}-${String(i + 1).padStart(2, '0')}`)
 }
 
 const SUITS = [
