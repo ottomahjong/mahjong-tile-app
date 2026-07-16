@@ -51,8 +51,10 @@ export function setSortKey(name) {
 let counter = 0
 
 export const useTileStore = create((set) => ({
-  width: 28,
-  depth: 20,
+  // Portrait face, like a real American mahjong tile (taller than wide), so
+  // upright artwork aligns vertically without rotating.
+  width: 20,
+  depth: 28,
 
   cornerTL: 3,
   cornerTR: 3,
