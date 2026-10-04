@@ -422,3 +422,7 @@ input[type='color'] {
   border-color: var(--sage);
 }
 .tpl-files code.done::after { content: ' ✓'; }
+
+/* ── Set finish controls ── */
+.set-finish { display: flex; flex-direction: column; gap: 0.5rem; }
+.set-finish-row { display: flex; flex-direction: column; gap: 0.35rem; }

@@ -202,8 +202,10 @@ export function buildLayerGeometry({
         if (art && gx > 0 && gx < G && gy > 0 && gy < G) {
           dy = art.depth * sampleHeight(art, u, v)
         }
-        // Recess into the layer: down from a top face, up from a bottom face
-        positions.push(x, isTop ? y - dy : y + dy, -sy)
+        // Recess cuts INTO the layer (down from a top face, up from a bottom
+        // face); raised ink pushes OUT the other way.
+        const s = art?.raised ? -1 : 1
+        positions.push(x, isTop ? y - s * dy : y + s * dy, -sy)
         uvs.push(mirrorU(u), v)
       }
     }

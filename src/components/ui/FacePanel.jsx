@@ -113,14 +113,13 @@ export default function FacePanel({ which, title, defaultEnd }) {
           </label>
 
           {face.mode === 'engrave-fill' && (
-            <label className="field field-row">
-              <span>Fill color</span>
-              <input
-                type="color"
-                value={face.fillColor}
-                onChange={(e) => updateFace(which, { fillColor: e.target.value })}
-              />
-            </label>
+            <div className="stack-hint">Recess is paint-filled with the graphic’s own colors.</div>
+          )}
+          {face.mode === 'engrave-blind' && (
+            <div className="stack-hint">Recess only, no paint — reads from shadow and highlight.</div>
+          )}
+          {face.mode === 'print' && (
+            <div className="stack-hint">Full-color ink, printed with a slight raised surface.</div>
           )}
           {face.mode === 'inlay' && (
             <label className="field field-row">

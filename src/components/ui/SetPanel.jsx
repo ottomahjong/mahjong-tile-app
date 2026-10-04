@@ -1,6 +1,36 @@
 import { useRef, useState } from 'react'
-import { useTileStore } from '../../state/useTileStore'
+import { useTileStore, FACE_MODES } from '../../state/useTileStore'
 import { SET_TEMPLATES, templateDesignCount } from '../../state/setTemplates'
+
+// Method + depth control for the whole set's fronts or back.
+function FinishRow({ label, cfg, onChange }) {
+  const engraved = cfg.mode === 'engrave-fill' || cfg.mode === 'engrave-blind' || cfg.mode === 'inlay'
+  return (
+    <div className="set-finish-row">
+      <label className="field">
+        <span>{label}</span>
+        <select value={cfg.mode} onChange={(e) => onChange({ mode: e.target.value })}>
+          {FACE_MODES.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+      </label>
+      {engraved && (
+        <label className="field">
+          <span>Depth · {cfg.depth.toFixed(1)}</span>
+          <input
+            type="range"
+            min={0.1}
+            max={2.5}
+            step={0.1}
+            value={cfg.depth}
+            onChange={(e) => onChange({ depth: Number(e.target.value) })}
+          />
+        </label>
+      )}
+    </div>
+  )
+}
 
 function readFiles(files) {
   return Promise.all(
@@ -34,6 +64,9 @@ export default function SetPanel() {
   const setViewMode = useTileStore((s) => s.setViewMode)
   const gridCols = useTileStore((s) => s.gridCols)
   const setGridCols = useTileStore((s) => s.setGridCols)
+  const setFront = useTileStore((s) => s.setFront)
+  const setBack = useTileStore((s) => s.setBack)
+  const setSetFinish = useTileStore((s) => s.setSetFinish)
   const frontsRef = useRef(null)
   const backRef = useRef(null)
   const replaceRef = useRef(null)
@@ -59,7 +92,8 @@ export default function SetPanel() {
           <li><strong>Fronts:</strong> one graphic per tile design, selected together.</li>
           <li>
             <strong>Format:</strong> PNG with a transparent background (preferred) or
-            SVG. Avoid JPG — it can’t be transparent.
+            SVG. Avoid JPG — it can’t be transparent. Export EPS/AI as SVG or PNG
+            first; browsers can’t read EPS directly.
           </li>
           <li>
             <strong>Size:</strong> {portrait ? 'portrait' : 'landscape'}{' '}
@@ -70,10 +104,10 @@ export default function SetPanel() {
             <strong>Layout:</strong> center the symbol with an ~8% margin, upright.
           </li>
           <li>
-            <strong>Naming:</strong> name each file so it auto-assigns — e.g.
-            <code>crak-1</code>, <code>bam-5</code>, <code>dot-9</code>,{' '}
-            <code>north</code>, <code>red-dragon</code>, <code>flower-1</code>,{' '}
-            <code>joker-1</code>, <code>blank-1</code>.
+            <strong>Naming:</strong> two-digit numerals so files auto-assign — e.g.
+            <code>crak-01</code>, <code>bam-05</code>, <code>dot-09</code>,{' '}
+            <code>north</code>, <code>red-dragon</code>, <code>flower-01</code>,{' '}
+            <code>joker-01</code>, <code>blank-01</code>.
           </li>
           <li><strong>Back:</strong> one shared design at the same size.</li>
         </ul>
@@ -105,6 +139,13 @@ export default function SetPanel() {
         <button className="btn btn-outline" onClick={() => backRef.current?.click()}>
           {set.backSrc ? 'Replace back' : 'Upload back'}
         </button>
+      </div>
+
+      {/* Engraving / print finish for every design in the set - adjustable
+          any time after upload. */}
+      <div className="set-finish">
+        <FinishRow label="Front finish" cfg={setFront} onChange={(u) => setSetFinish('setFront', u)} />
+        <FinishRow label="Back finish" cfg={setBack} onChange={(u) => setSetFinish('setBack', u)} />
       </div>
 
       {/* Required-tiles checklist for the chosen set */}

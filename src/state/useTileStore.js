@@ -11,10 +11,10 @@ export const MATERIALS = {
 }
 
 export const FACE_MODES = [
-  { value: 'print', label: 'UV Print (full color)' },
-  { value: 'engrave-blind', label: 'Engraved · Blind' },
-  { value: 'engrave-fill', label: 'Engraved · Filled' },
-  { value: 'inlay', label: 'Inlay (own material)' },
+  { value: 'print', label: 'UV Print · raised ink' },
+  { value: 'engrave-fill', label: 'Engraved · painted infill' },
+  { value: 'engrave-blind', label: 'Engraved · blind (no paint)' },
+  { value: 'inlay', label: 'Inlay · own material' },
 ]
 
 export const DEFAULT_PLACEMENT = { x: 0, y: 0, scale: 1, rotation: 0 }
@@ -28,11 +28,14 @@ export const VIEW_MODES = [
   { value: 'flatlay', label: 'Marketing Flat Lay' },
 ]
 
+// Bottom -> top. The Base (cream resin) is the outermost FRONT face where the
+// tile design lives; the Cap (tinted clear acrylic) is the BACK, on the far
+// side. Face A (front) targets the topmost layer, Face B (back) the bottom.
 const defaultLayers = [
-  { id: 'base', name: 'Base', thickness: 8, material: 'resin', color: '#f0ebe0', opacity: 1 },
-  { id: 'body', name: 'Body', thickness: 10, material: 'resin', color: '#0d1b3e', opacity: 1 },
+  { id: 'cap', name: 'Cap (back)', thickness: 6, material: 'acrylic', color: '#e8c4a0', opacity: 0.4 },
   { id: 'inlay', name: 'Inlay', thickness: 2, material: 'metallic', color: '#b87333', opacity: 1 },
-  { id: 'cap', name: 'Cap', thickness: 6, material: 'acrylic', color: '#e8c4a0', opacity: 0.4 },
+  { id: 'body', name: 'Body', thickness: 10, material: 'resin', color: '#0d1b3e', opacity: 1 },
+  { id: 'base', name: 'Base (front)', thickness: 8, material: 'resin', color: '#f0ebe0', opacity: 1 },
 ]
 
 // Suit-aware ordering for batch-uploaded set fronts (flexible: unknown
@@ -84,6 +87,12 @@ export const useTileStore = create((set) => ({
   bgColor: '#f5f2ec',
   // Columns for the Full Set Grid (0 = auto-fit to a landscape rectangle).
   gridCols: 0,
+
+  // Finish applied to every batch-uploaded design (front = the per-tile
+  // graphics, back = the shared back). mode: print | engrave-fill |
+  // engrave-blind | inlay.
+  setFront: { mode: 'engrave-fill', depth: 0.8, softness: 0.35 },
+  setBack: { mode: 'print', depth: 0.4, softness: 0.3 },
 
   addLayer: () =>
     set((state) => {
@@ -169,6 +178,9 @@ export const useTileStore = create((set) => ({
 
   setBackSrc: (src) => set((state) => ({ set: { ...state.set, backSrc: src } })),
   clearSet: () => set({ set: { tiles: [], backSrc: null } }),
+
+  setSetFinish: (which, updates) =>
+    set((state) => ({ [which]: { ...state[which], ...updates } })),
 
   setViewMode: (m) => set({ viewMode: m }),
   setBgColor: (c) => set({ bgColor: c }),
